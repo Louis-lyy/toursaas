@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="assets/logo-tooda-icon.svg" type="image/svg+xml">
+    <title>Tooda — 多用户账号管理</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+        .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .login-box { width: 100%; max-width: 400px; background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; padding: 2rem; box-shadow: 0 4px 24px rgba(0,0,0,.06); }
+        .admin-shell { min-height: 100vh; display: flex; flex-direction: column; }
+        .admin-topbar { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+        .admin-content { padding: 1.5rem; flex: 1; }
+        .stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; }
+        .stat-num { font-size: 1.75rem; font-weight: 700; color: #0f172a; }
+        .badge-setup-pending { background: #f1f5f9; color: #64748b; }
+        .badge-setup-progress { background: #fef3c7; color: #b45309; }
+        .badge-setup-done { background: #d1fae5; color: #065f46; }
+        .badge-pub-draft { background: #f1f5f9; color: #64748b; }
+        .badge-pub-pending { background: #fef3c7; color: #b45309; }
+        .badge-pub-live { background: #dbeafe; color: #1d4ed8; }
+        .cred-box { background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 1rem; font-family: ui-monospace, monospace; }
+        .table td { vertical-align: middle; }
+        .pwd-wrap { display: inline-flex; align-items: center; gap: .35rem; }
+        .pwd-mask { color: #94a3b8; letter-spacing: .1em; user-select: none; }
+        .pwd-plain { font-family: ui-monospace, monospace; color: #be185d; }
+    </style>
+</head>
+<body>
+
+<div id="loginView" class="login-wrap">
+    <div class="login-box">
+        <div class="text-center mb-4">
+            <img src="assets/logo-tooda-icon.svg" width="48" height="48" alt="Tooda" class="mb-3">
+            <h1 class="h4 fw-bold">Tooda 超级管理员</h1>
+            <p class="text-muted small">多租户账号管理 · 发放账号 · 查看配置与发布状态</p>
+        </div>
+        <form id="loginForm">
+            <div class="mb-3">
+                <label class="form-label">管理员账号</label>
+                <input type="text" id="loginUser" class="form-control" value="superadmin" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">密码</label>
+                <div class="input-group">
+                    <input type="password" id="loginPass" class="form-control" value="tooda2026" placeholder="请输入密码" autocomplete="current-password" required autofocus>
+                    <button type="button" class="btn btn-outline-secondary" id="btnTogglePass" title="显示密码"><i class="fas fa-eye"></i></button>
+                </div>
+            </div>
+            <div id="loginError" class="alert alert-danger py-2 small d-none"></div>
+            <button type="submit" class="btn btn-primary w-100">登录</button>
+        </form>
+        <p class="text-muted text-center small mt-3 mb-0">演示账号：<button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="btnFillDemo">superadmin / tooda2026</button>（点击填入）</p>
+        <p class="text-center small mt-2 mb-0"><a href="editor.html">← 返回租户后台 editor</a></p>
+    </div>
+</div>
+
+<div id="adminView" class="admin-shell d-none">
+    <div class="admin-topbar">
+        <div class="d-flex align-items-center gap-2">
+            <img src="assets/logo-tooda-icon.svg" width="28" height="28" alt="">
+            <h1 class="h5 mb-0 fw-semibold">多用户账号管理</h1>
+        </div>
+        <div class="d-flex gap-2">
+            <span class="badge bg-light text-dark border align-self-center d-none" id="storeModeBadge"></span>
+            <a href="editor.html" class="btn btn-sm btn-outline-secondary" target="_blank"><i class="fas fa-external-link-alt me-1"></i>租户后台</a>
+            <button class="btn btn-sm btn-outline-secondary" id="btnLogout">退出</button>
+        </div>
+    </div>
+    <div class="admin-content">
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3"><div class="stat-card"><div class="text-muted small">租户总数</div><div class="stat-num" id="statTotal">0</div></div></div>
+            <div class="col-6 col-lg-3"><div class="stat-card"><div class="text-muted small">已配置网站</div><div class="stat-num text-success" id="statConfigured">0</div></div></div>
+            <div class="col-6 col-lg-3"><div class="stat-card"><div class="text-muted small">待发布</div><div class="stat-num text-warning" id="statNeedPublish">0</div></div></div>
+            <div class="col-6 col-lg-3"><div class="stat-card"><div class="text-muted small">已发布</div><div class="stat-num text-primary" id="statPublished">0</div></div></div>
+        </div>
+
+        <div class="bg-white border rounded-3 p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <div>
+                    <h2 class="h6 fw-semibold mb-1">租户列表</h2>
+                    <p class="text-muted small mb-0">创建账号后可将登录信息发给客户；配置与发布状态从各租户 editor 数据自动同步。</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm" onclick="refreshAllTenants()"><i class="fas fa-sync-alt me-1"></i>刷新状态</button>
+                    <button class="btn btn-primary btn-sm" onclick="openCreateModal()"><i class="fas fa-plus me-1"></i>新建租户</button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>租户</th>
+                            <th>登录账号</th>
+                            <th>密码</th>
+                            <th>邮箱</th>
+                            <th>套餐</th>
+                            <th>配置状态</th>
+                            <th>发布状态</th>
+                            <th>内容</th>
+                            <th>最近登录</th>
+                            <th class="text-end">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tenantTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 新建租户 -->
+<div class="modal fade" id="createModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-semibold">新建租户</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3"><label class="form-label">显示名称 <span class="text-danger">*</span></label><input type="text" id="createDisplayName" class="form-control" placeholder="客户名称 / 导游品牌" required></div>
+                <div class="mb-3"><label class="form-label">邮箱 <span class="text-danger">*</span></label><input type="email" id="createEmail" class="form-control" placeholder="用于联系与通知" required></div>
+                <div class="mb-3"><label class="form-label">手机号</label><input type="tel" id="createPhone" class="form-control" placeholder="选填"></div>
+                <div class="mb-3"><label class="form-label">套餐</label>
+                    <select id="createPlan" class="form-select">
+                        <option value="member">会员版</option>
+                        <option value="platinum" selected>铂金版</option>
+                        <option value="custom">私人订制版</option>
+                    </select>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6"><label class="form-label">登录账号</label><input type="text" id="createUsername" class="form-control form-control-sm"></div>
+                    <div class="col-6"><label class="form-label">初始密码</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="createPassword" class="form-control">
+                            <button type="button" class="btn btn-outline-secondary" onclick="genCreatePassword()"><i class="fas fa-dice"></i></button>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-muted small mt-2 mb-0">留空账号/密码将自动生成。创建后请通过「发账号」复制给客户。</p>
+                <div id="createFormError" class="alert alert-danger py-2 px-3 small mt-3 mb-0 d-none" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal" id="btnCreateCancel">取消</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnCreateTenant" onclick="createTenant()">创建</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 发账号 -->
+<div class="modal fade" id="credModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-semibold"><i class="fas fa-key me-2 text-primary"></i>账号信息</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">请将以下信息发送给客户，登录地址：<strong>editor.html</strong></p>
+                <div class="cred-box mb-3" id="credText"></div>
+                <button type="button" class="btn btn-outline-primary btn-sm w-100" onclick="copyCredentials()"><i class="fas fa-copy me-1"></i>复制全部</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 详情 -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-semibold">租户详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailBody"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const PLATFORM_KEY = 'toursaas_platform';
+const SUPER_USER = 'superadmin';
+const SUPER_PASS = 'tooda2026';
+const PLAN_LABELS = { member: '会员版', platinum: '铂金版', custom: '私人订制版' };
+const API_BASE = window.TOODA_API_BASE || '';
+
+let createModal, credModal, detailModal;
+let credTenantId = null;
+let apiOnline = false;
+let storeMode = 'local';
+let platformCache = { tenants: [] };
+
+function superHeaders() {
+    return {
+        'Content-Type': 'application/json',
+        'X-Super-Admin': SUPER_PASS
+    };
+}
+
+async function apiFetch(path, options = {}) {
+    const controller = new AbortController();
+    const timeoutMs = options.timeoutMs || 45000;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const res = await fetch(`${API_BASE}${path}`, {
+            ...options,
+            signal: controller.signal,
+            headers: { ...superHeaders(), ...(options.headers || {}) }
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error || `API ${res.status}`);
+        return json;
+    } catch (e) {
+        if (e?.name === 'AbortError') throw new Error('请求超时，请检查 API/飞书后重试');
+        throw e;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+async function checkPlatformApi() {
+    try {
+        const json = await fetch(`${API_BASE}/api/platform/health`).then(r => r.json());
+        apiOnline = !!json.ok;
+        storeMode = json.storeMode || 'file';
+    } catch {
+        apiOnline = false;
+        storeMode = 'local';
+    }
+    updateStoreModeBadge();
+}
+
+function updateStoreModeBadge() {
+    const badge = document.getElementById('storeModeBadge');
+    if (!badge) return;
+    badge.classList.remove('d-none');
+    badge.textContent = apiOnline ? (storeMode === 'feishu' ? '飞书' : 'API') : 'localStorage';
+    badge.className = apiOnline ? 'badge bg-light text-dark border align-self-center' : 'badge bg-warning text-dark border align-self-center';
+}
+
+async function fetchTenantsFromApi() {
+    const json = await apiFetch('/api/platform/tenants');
+    platformCache = { tenants: json.tenants || [] };
+    if (json.storeMode) storeMode = json.storeMode;
+    return platformCache;
+}
+
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+function tenantDataKey(tenantId) { return `toursaas_data_${tenantId}`; }
+
+function defaultPlatform() {
+    return {
+        tenants: [{
+            id: 'tenant-001',
+            username: 'admin',
+            password: '123456',
+            displayName: 'China Tour',
+            email: '389045@qq.com',
+            phone: '+86 29 1234 5678',
+            plan: 'platinum',
+            status: 'active',
+            notes: '默认演示租户',
+            createdAt: '2026-01-15T08:00:00.000Z',
+            lastLoginAt: null,
+            credentialsSentAt: null,
+            setupStatus: 'pending',
+            publishStatus: 'draft',
+            contentSummary: { routes: 0, articles: 0 }
+        }]
+    };
+}
+
+function loadPlatform() {
+    if (apiOnline && platformCache.tenants.length) return platformCache;
+    try {
+        const raw = localStorage.getItem(PLATFORM_KEY);
+        if (raw) {
+            const p = JSON.parse(raw);
+            platformCache = { ...defaultPlatform(), ...p, tenants: p.tenants || defaultPlatform().tenants };
+            return platformCache;
+        }
+    } catch (e) {}
+    platformCache = defaultPlatform();
+    savePlatform(platformCache);
+    return platformCache;
+}
+
+function savePlatform(p) {
+    platformCache = p;
+    if (!apiOnline) localStorage.setItem(PLATFORM_KEY, JSON.stringify(p));
+}
+
+async function loadTenantData(tenantId) {
+    if (apiOnline) {
+        try {
+            const json = await fetch(`${API_BASE}/api/platform/tenants/${tenantId}/data`).then(r => r.json());
+            return json.data || null;
+        } catch (e) {
+            console.warn('loadTenantData', e);
+        }
+    }
+    try {
+        const raw = localStorage.getItem(tenantDataKey(tenantId));
+        if (raw) return JSON.parse(raw);
+        if (tenantId === 'tenant-001') {
+            const legacy = localStorage.getItem('toursaas_data');
+            if (legacy) return JSON.parse(legacy);
+        }
+    } catch (e) {}
+    return null;
+}
+
+function loadTenantDataSync(tenantId) {
+    try {
+        const raw = localStorage.getItem(tenantDataKey(tenantId));
+        if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return null;
+}
+
+function computeSetupStatus(data) {
+    if (!data) return 'pending';
+    const routes = data.routes?.length || 0;
+    const articles = data.articles?.length || 0;
+    const profile = data.profile || {};
+    const hasContent = routes > 0 || articles > 0;
+    const hasProfile = !!(profile.nickname?.trim() && (profile.email?.trim() || profile.phone?.trim()));
+    if (hasContent && hasProfile) return 'configured';
+    if (hasContent || hasProfile) return 'in_progress';
+    return 'pending';
+}
+
+function syncTenantMeta(tenant) {
+    if (apiOnline) return tenant;
+    const data = loadTenantDataSync(tenant.id);
+    tenant.setupStatus = computeSetupStatus(data);
+    tenant.publishStatus = data?.publish?.status || 'draft';
+    tenant.contentSummary = {
+        routes: data?.routes?.length || 0,
+        articles: data?.articles?.length || 0
+    };
+    if (data?.account?.displayName) tenant.displayName = data.account.displayName;
+    if (data?.account?.email) tenant.email = data.account.email;
+    if (data?.account?.phone) tenant.phone = data.account.phone;
+    return tenant;
+}
+
+async function refreshAllTenants() {
+    if (apiOnline) {
+        try {
+            await fetchTenantsFromApi();
+        } catch (e) {
+            alert('刷新失败：' + (e.message || e));
+        }
+    } else {
+        const p = loadPlatform();
+        p.tenants = p.tenants.map(syncTenantMeta);
+        savePlatform(p);
+    }
+    renderTable();
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+function fmtDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function setupBadge(s) {
+    const map = {
+        pending: ['未开始', 'badge-setup-pending'],
+        in_progress: ['配置中', 'badge-setup-progress'],
+        configured: ['已配置', 'badge-setup-done']
+    };
+    const [label, cls] = map[s] || map.pending;
+    return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function publishBadge(s) {
+    const map = {
+        draft: ['未发布', 'badge-pub-draft'],
+        pending: ['审核中', 'badge-pub-pending'],
+        published: ['已发布', 'badge-pub-live']
+    };
+    const [label, cls] = map[s] || map.draft;
+    return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function renderStats(tenants) {
+    document.getElementById('statTotal').textContent = tenants.filter(t => t.status === 'active').length;
+    document.getElementById('statConfigured').textContent = tenants.filter(t => t.setupStatus === 'configured').length;
+    document.getElementById('statPublished').textContent = tenants.filter(t => t.publishStatus === 'published').length;
+    document.getElementById('statNeedPublish').textContent = tenants.filter(t =>
+        t.setupStatus === 'configured' && t.publishStatus !== 'published' && t.status === 'active'
+    ).length;
+}
+
+function renderTable() {
+    const tenants = loadPlatform().tenants;
+    renderStats(tenants);
+    const tbody = document.getElementById('tenantTable');
+    if (!tenants.length) {
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无租户</td></tr>';
+        return;
+    }
+    tbody.innerHTML = tenants.map(t => {
+        const disabled = t.status === 'disabled';
+        const content = `${t.contentSummary?.routes || 0} 路线 · ${t.contentSummary?.articles || 0} 文章`;
+        const pwd = esc(t.password || '—');
+        return `<tr class="${disabled ? 'table-secondary' : ''}">
+            <td>
+                <div class="fw-semibold">${esc(t.displayName || '—')}</div>
+                <div class="text-muted small">${esc(t.id)}</div>
+            </td>
+            <td><code>${esc(t.username)}</code></td>
+            <td>
+                <span class="pwd-wrap">
+                    <span class="pwd-mask">••••••••</span>
+                    <code class="pwd-plain d-none">${pwd}</code>
+                    <button type="button" class="btn btn-link btn-sm p-0 text-secondary" onclick="toggleRowPassword(this)" title="显示/隐藏密码"><i class="fas fa-eye"></i></button>
+                    <button type="button" class="btn btn-link btn-sm p-0 text-secondary" onclick="copyPassword('${t.id}')" title="复制密码"><i class="fas fa-copy"></i></button>
+                </span>
+            </td>
+            <td class="small">${esc(t.email || '—')}</td>
+            <td><span class="badge bg-light text-dark border">${esc(PLAN_LABELS[t.plan] || t.plan)}</span></td>
+            <td>${setupBadge(t.setupStatus)}</td>
+            <td>${publishBadge(t.publishStatus)}</td>
+            <td class="small text-muted">${content}</td>
+            <td class="small text-muted">${fmtDate(t.lastLoginAt)}</td>
+            <td class="text-end text-nowrap">
+                <button class="btn btn-link btn-sm p-0 me-2" onclick="showCredentials('${t.id}')">发账号</button>
+                <button class="btn btn-link btn-sm p-0 me-2" onclick="showDetail('${t.id}')">详情</button>
+                <button class="btn btn-link btn-sm p-0 me-2" onclick="resetPassword('${t.id}')">重置密码</button>
+                <button class="btn btn-link btn-sm p-0 ${disabled ? 'text-success' : 'text-danger'}" onclick="toggleTenant('${t.id}')">${disabled ? '启用' : '禁用'}</button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function genPassword(len = 8) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let s = '';
+    for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
+    return s;
+}
+
+function genUsername() {
+    return 'user' + Math.floor(1000 + Math.random() * 9000);
+}
+
+function genCreatePassword() {
+    document.getElementById('createPassword').value = genPassword();
+}
+
+function setCreateFormError(msg) {
+    const el = document.getElementById('createFormError');
+    if (!el) return;
+    if (!msg) {
+        el.classList.add('d-none');
+        el.textContent = '';
+        return;
+    }
+    el.textContent = msg;
+    el.classList.remove('d-none');
+}
+
+function openCreateModal() {
+    document.getElementById('createDisplayName').value = '';
+    document.getElementById('createEmail').value = '';
+    document.getElementById('createPhone').value = '';
+    document.getElementById('createPlan').value = 'platinum';
+    document.getElementById('createUsername').value = genUsername();
+    document.getElementById('createPassword').value = genPassword();
+    setCreateFormError('');
+    const btn = document.getElementById('btnCreateTenant');
+    if (btn) { btn.disabled = false; btn.innerHTML = '创建'; }
+    createModal.show();
+    setTimeout(() => document.getElementById('createDisplayName')?.focus(), 300);
+}
+
+function initTenantData(tenant) {
+    const key = tenantDataKey(tenant.id);
+    if (localStorage.getItem(key)) return;
+    const data = {
+        profile: {
+            nickname: tenant.displayName || 'My Tour',
+            bio: '',
+            email: tenant.email || '',
+            phone: tenant.phone || '',
+            wechat: '',
+            avatar: ''
+        },
+        articles: [],
+        routes: [],
+        visitCount: 0,
+        notifications: [],
+        uiTemplate: 'classic',
+        publish: { status: 'draft', domainMode: null, customDomain: '', assignedDomain: '', publishedAt: null },
+        inquiries: [],
+        account: {
+            id: tenant.id,
+            username: tenant.username,
+            displayName: tenant.displayName,
+            email: tenant.email,
+            phone: tenant.phone,
+            plan: tenant.plan,
+            role: 'owner',
+            createdAt: tenant.createdAt
+        }
+    };
+    localStorage.setItem(key, JSON.stringify(data));
+}
+
+let createInFlight = false;
+
+async function createTenant() {
+    if (createInFlight) return;
+    setCreateFormError('');
+
+    const displayName = document.getElementById('createDisplayName').value.trim();
+    const email = document.getElementById('createEmail').value.trim();
+    if (!displayName) {
+        setCreateFormError('请填写「显示名称」（在弹窗最上方）');
+        document.getElementById('createDisplayName')?.focus();
+        return;
+    }
+    if (!email) {
+        setCreateFormError('请填写「邮箱」（在显示名称下方）');
+        document.getElementById('createEmail')?.focus();
+        return;
+    }
+    let username = document.getElementById('createUsername').value.trim();
+    let password = document.getElementById('createPassword').value.trim();
+    if (!username) username = genUsername();
+    if (!password) password = genPassword();
+
+    if (!apiOnline) {
+        setCreateFormError('未连接飞书/API。请用 http://localhost:3000/accounts.html 打开，并确认右上角徽章为「飞书」。');
+        return;
+    }
+
+    const btn = document.getElementById('btnCreateTenant');
+    const cancelBtn = document.getElementById('btnCreateCancel');
+    createInFlight = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>创建中…'; }
+    if (cancelBtn) cancelBtn.disabled = true;
+
+    try {
+        if (btn) btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>写入飞书…';
+        const json = await apiFetch('/api/platform/tenants', {
+            method: 'POST',
+            body: JSON.stringify({
+                displayName, email, username, password,
+                phone: document.getElementById('createPhone').value.trim(),
+                plan: document.getElementById('createPlan').value
+            })
+        });
+        // 先把新租户并入缓存，立刻结束「创建中」，列表后台刷新
+        if (json.tenant) {
+            platformCache.tenants = [
+                json.tenant,
+                ...(platformCache.tenants || []).filter(t => t.id !== json.tenant.id)
+            ];
+        }
+        createModal?.hide();
+        renderTable();
+        // 先弹出账号信息，再后台刷新列表（避免卡在创建中）
+        showCredentials(json.tenant.id, json.tenant);
+        fetchTenantsFromApi().then(() => renderTable()).catch((listErr) => {
+            console.warn('刷新列表失败（租户已创建）', listErr);
+        });
+    } catch (e) {
+        setCreateFormError('创建失败（未写入飞书）：' + (e.message || e));
+    } finally {
+        createInFlight = false;
+        if (btn) { btn.disabled = false; btn.innerHTML = '创建'; }
+        if (cancelBtn) cancelBtn.disabled = false;
+    }
+}
+
+function getTenant(id) {
+    return loadPlatform().tenants.find(t => t.id === id);
+}
+
+function credentialsText(t) {
+    const url = new URL('editor.html', window.location.href).href;
+    return `【Tooda 旅游网站后台】\n登录地址：${url}\n租户 ID：${t.id}\n登录账号：${t.username}\n初始密码：${t.password}\n套餐：${PLAN_LABELS[t.plan] || t.plan}\n\n请登录后完善网站资料、添加路线，并在后台点击「发布网站」。`;
+}
+
+async function showCredentials(id, tenantOverride) {
+    const t = tenantOverride || getTenant(id);
+    if (!t) {
+        alert('租户已创建，但本地列表未找到该账号。请刷新页面后查看。');
+        return;
+    }
+    // 确保缓存里有这份数据，方便复制密码
+    if (!getTenant(t.id)) {
+        platformCache.tenants = [t, ...(platformCache.tenants || [])];
+    }
+    credTenantId = id;
+    document.getElementById('credText').textContent = credentialsText(t);
+    credModal.show();
+    // 标记「已发账号」放到后台，不阻塞弹窗
+    if (apiOnline) {
+        apiFetch(`/api/platform/tenants/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ credentialsSentAt: new Date().toISOString() })
+        }).then(() => fetchTenantsFromApi()).then(() => renderTable()).catch((e) => console.warn(e));
+    } else {
+        const p = loadPlatform();
+        const idx = p.tenants.findIndex(x => x.id === id);
+        if (idx >= 0) {
+            p.tenants[idx].credentialsSentAt = new Date().toISOString();
+            savePlatform(p);
+        }
+    }
+}
+
+function copyCredentials() {
+    const t = getTenant(credTenantId);
+    if (!t) return;
+    navigator.clipboard.writeText(credentialsText(t)).then(() => alert('已复制到剪贴板')).catch(() => alert('复制失败，请手动复制'));
+}
+
+function toggleRowPassword(btn) {
+    const wrap = btn.closest('.pwd-wrap');
+    const mask = wrap.querySelector('.pwd-mask');
+    const plain = wrap.querySelector('.pwd-plain');
+    const icon = btn.querySelector('i');
+    const show = plain.classList.contains('d-none');
+    mask.classList.toggle('d-none', show);
+    plain.classList.toggle('d-none', !show);
+    icon.className = show ? 'fas fa-eye-slash' : 'fas fa-eye';
+}
+
+function copyPassword(id) {
+    const t = getTenant(id);
+    if (!t?.password) return alert('无密码');
+    navigator.clipboard.writeText(t.password).then(() => alert('密码已复制')).catch(() => alert('复制失败'));
+}
+
+async function resetPassword(id) {
+    const t = getTenant(id);
+    if (!t) return;
+    if (!confirm(`确定为 ${t.displayName || t.username} 重置密码？`)) return;
+    if (apiOnline) {
+        try {
+            const json = await apiFetch(`/api/platform/tenants/${id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ resetPassword: true })
+            });
+            await fetchTenantsFromApi();
+            renderTable();
+            showCredentials(json.tenant.id);
+            return;
+        } catch (e) {
+            return alert(e.message || '重置失败');
+        }
+    }
+    const p = loadPlatform();
+    const idx = p.tenants.findIndex(x => x.id === id);
+    if (idx < 0) return;
+    p.tenants[idx].password = genPassword();
+    savePlatform(p);
+    showCredentials(id);
+}
+
+async function toggleTenant(id) {
+    const t = getTenant(id);
+    if (!t) return;
+    const newStatus = t.status === 'disabled' ? 'active' : 'disabled';
+    if (apiOnline) {
+        try {
+            await apiFetch(`/api/platform/tenants/${id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ status: newStatus })
+            });
+            await fetchTenantsFromApi();
+            renderTable();
+            return;
+        } catch (e) {
+            return alert(e.message || '操作失败');
+        }
+    }
+    const p = loadPlatform();
+    const idx = p.tenants.findIndex(x => x.id === id);
+    if (idx < 0) return;
+    p.tenants[idx].status = newStatus;
+    savePlatform(p);
+    renderTable();
+}
+
+async function showDetail(id) {
+    let t = getTenant(id);
+    if (!t) return;
+    if (!apiOnline) t = syncTenantMeta({ ...t });
+    const data = await loadTenantData(t.id);
+    const pub = data?.publish || {};
+    document.getElementById('detailBody').innerHTML = `
+        <div class="row g-3">
+            <div class="col-md-6"><label class="text-muted small">租户 ID</label><div class="fw-semibold">${esc(t.id)}</div></div>
+            <div class="col-md-6"><label class="text-muted small">账号状态</label><div>${t.status === 'active' ? '<span class="badge bg-success">正常</span>' : '<span class="badge bg-secondary">已禁用</span>'}</div></div>
+            <div class="col-md-6"><label class="text-muted small">显示名称</label><div>${esc(t.displayName)}</div></div>
+            <div class="col-md-6"><label class="text-muted small">登录账号</label><div><code>${esc(t.username)}</code></div></div>
+            <div class="col-md-6"><label class="text-muted small">登录密码</label><div><code class="text-danger">${esc(t.password || '—')}</code></div></div>
+            <div class="col-md-6"><label class="text-muted small">邮箱</label><div>${esc(t.email || '—')}</div></div>
+            <div class="col-md-6"><label class="text-muted small">手机</label><div>${esc(t.phone || '—')}</div></div>
+            <div class="col-md-6"><label class="text-muted small">套餐</label><div>${esc(PLAN_LABELS[t.plan])}</div></div>
+            <div class="col-md-6"><label class="text-muted small">开通时间</label><div>${fmtDate(t.createdAt)}</div></div>
+            <div class="col-md-6"><label class="text-muted small">配置状态</label><div>${setupBadge(t.setupStatus)}</div></div>
+            <div class="col-md-6"><label class="text-muted small">发布状态</label><div>${publishBadge(t.publishStatus)}</div></div>
+            <div class="col-md-6"><label class="text-muted small">最近登录</label><div>${fmtDate(t.lastLoginAt)}</div></div>
+            <div class="col-md-6"><label class="text-muted small">账号发放</label><div>${fmtDate(t.credentialsSentAt)}</div></div>
+            <div class="col-12"><label class="text-muted small">发布信息</label>
+                <div class="small">${pub.status === 'published'
+                    ? `已发布 · ${esc(pub.customDomain || pub.assignedDomain || '—')} · ${fmtDate(pub.publishedAt)}`
+                    : pub.status === 'pending' ? '域名审核中' : '尚未提交发布'}</div>
+            </div>
+            <div class="col-12"><label class="text-muted small">网站内容</label>
+                <div>${t.contentSummary?.routes || 0} 条路线，${t.contentSummary?.articles || 0} 篇文章</div>
+            </div>
+        </div>
+        <div class="mt-3 d-flex gap-2">
+            <button class="btn btn-primary btn-sm" onclick="showCredentials('${t.id}');detailModal.hide();">发账号</button>
+            <a href="editor.html" target="_blank" class="btn btn-outline-secondary btn-sm">打开租户后台</a>
+        </div>`;
+    detailModal.show();
+}
+
+function normalizeLoginInput(value) {
+    return String(value || '')
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .replace(/\u3000/g, ' ')
+        .trim();
+}
+
+function checkSuperLogin(username, password) {
+    return normalizeLoginInput(username).toLowerCase() === SUPER_USER
+        && normalizeLoginInput(password) === SUPER_PASS;
+}
+
+document.getElementById('btnFillDemo').onclick = () => {
+    document.getElementById('loginUser').value = SUPER_USER;
+    document.getElementById('loginPass').value = SUPER_PASS;
+    document.getElementById('loginError').classList.add('d-none');
+    document.getElementById('loginPass').focus();
+};
+
+document.getElementById('btnTogglePass').onclick = () => {
+    const input = document.getElementById('loginPass');
+    const icon = document.querySelector('#btnTogglePass i');
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    icon.className = show ? 'fas fa-eye-slash' : 'fas fa-eye';
+};
+
+document.getElementById('loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const u = normalizeLoginInput(document.getElementById('loginUser').value);
+    const p = normalizeLoginInput(document.getElementById('loginPass').value);
+    const err = document.getElementById('loginError');
+
+    if (apiOnline) {
+        try {
+            const res = await fetch(`${API_BASE}/api/platform/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            const json = await res.json();
+            if (json.role === 'superadmin') {
+                sessionStorage.setItem('tooda_super_logged_in', '1');
+                err.classList.add('d-none');
+                await enterAdmin();
+                return;
+            }
+        } catch (e) { /* fall through */ }
+    }
+
+    if (checkSuperLogin(u, p)) {
+        sessionStorage.setItem('tooda_super_logged_in', '1');
+        err.classList.add('d-none');
+        await enterAdmin();
+    } else {
+        err.textContent = '账号或密码错误，演示密码为 tooda2026（注意无空格）';
+        err.classList.remove('d-none');
+    }
+});
+
+document.getElementById('btnLogout').onclick = () => {
+    sessionStorage.removeItem('tooda_super_logged_in');
+    document.getElementById('adminView').classList.add('d-none');
+    document.getElementById('loginView').classList.remove('d-none');
+};
+
+async function enterAdmin() {
+    await checkPlatformApi();
+    if (apiOnline) {
+        try {
+            await fetchTenantsFromApi();
+        } catch (e) {
+            console.warn('fetchTenantsFromApi', e);
+            // 保持 apiOnline，勿回退 localStorage，否则新建租户只写浏览器、不同步飞书
+            alert('读取飞书租户列表失败：' + (e.message || e) + '\n请确认已启动 tour-saas-admin，并已登录超级管理员。');
+            platformCache = { tenants: [] };
+        }
+    } else {
+        alert('未连接 Platform API，新建租户只会保存在本机浏览器，不会写入飞书。\n请先运行 tour-saas-admin（npm run dev），再打开本页：http://localhost:3000/accounts.html');
+        loadPlatform();
+    }
+    document.getElementById('loginView').classList.add('d-none');
+    document.getElementById('adminView').classList.remove('d-none');
+    if (typeof bootstrap !== 'undefined') {
+        createModal = new bootstrap.Modal(document.getElementById('createModal'));
+        credModal = new bootstrap.Modal(document.getElementById('credModal'));
+        detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+    }
+    updateStoreModeBadge();
+    renderTable();
+}
+
+checkPlatformApi().then(() => {
+    if (sessionStorage.getItem('tooda_super_logged_in') === '1') enterAdmin();
+});
+</script>
+</body>
+</html>

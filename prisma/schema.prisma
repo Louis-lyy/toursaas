@@ -1,0 +1,47 @@
+// TourSaaS Admin — Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// 导游个人信息（单用户配置）
+model User {
+  id        Int      @id @default(autoincrement())
+  avatar    String?
+  nickname  String   @default("导游")
+  bio       String?
+  wechat    String?
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// 文章
+model Article {
+  id         Int      @id @default(autoincrement())
+  title      String
+  content    String   @default("")
+  coverImage String?
+  status     String   @default("draft") // draft | published
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+/// 旅游路线
+model TourRoute {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  price       Float    @default(0)
+  image       String?
+  days        Int      @default(1)
+  highlights  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
