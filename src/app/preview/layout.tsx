@@ -1,6 +1,8 @@
 import Script from "next/script";
 import "./preview.css";
 
+export const dynamic = "force-dynamic";
+
 export default function PreviewLayout({
   children,
 }: {
